@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.registrar_mudanca_etapa() FROM PUBLIC, anon, authenticated;

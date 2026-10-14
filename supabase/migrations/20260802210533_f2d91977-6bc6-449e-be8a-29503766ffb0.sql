@@ -1,0 +1,2 @@
+ALTER TABLE public.diagnosticos ADD COLUMN IF NOT EXISTS link_agendamento text;
+UPDATE public.diagnosticos SET link_agendamento = 'https://calendly.com/cibelelucena/devolutiva' WHERE link_agendamento IS NULL;

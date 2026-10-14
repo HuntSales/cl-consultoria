@@ -1,0 +1,1 @@
+ALTER TABLE public.respostas_diagnostico ADD COLUMN IF NOT EXISTS devolutiva jsonb;

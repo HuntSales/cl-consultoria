@@ -1,0 +1,1 @@
+ALTER TABLE public.diagnosticos ADD COLUMN IF NOT EXISTS capa_itens text;
