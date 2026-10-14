@@ -47,23 +47,59 @@ Verificado na cópia: `npm install` + `tsc --noEmit` sem erros e `vite build` co
 
 ## 4. Banco de dados (Supabase novo: `yxmrhxvitvhijrhrfmvj`)
 
+**Verificado em 14/10/2026 comparando o banco em produção com as migrations:**
+as 24 tabelas, as funções, as policies (RLS), o trigger `on_auth_user_created`, as extensões
+(pgmq, pg_cron, pg_net, vault, pgcrypto) e o bucket privado `lead-anexos` com suas 3 policies
+**estão todos nas migrations**. Só ficaram de fora duas funções da fila de e-mail, que agora
+estão em `supabase/extras/email_queue_dispatch.sql`.
+
+### Passo a passo
+
 1. Atualizar `supabase/config.toml`: `project_id = "yxmrhxvitvhijrhrfmvj"` (hoje aponta para o antigo `ruujhiblfswlgjtyzhaz`).
-2. Aplicar o schema:
+2. Recriar a estrutura idêntica:
    ```bash
    supabase link --project-ref yxmrhxvitvhijrhrfmvj
-   supabase db push
+   supabase db push        # aplica as 26 migrations em ordem
    ```
-   São 26 migrations em `supabase/migrations/`.
-3. **Storage:** criar o bucket **privado** `lead-anexos` (anexos das anotações do CRM), com as policies equivalentes.
-4. **Infra de e-mail que NÃO está nas migrations** (o Lovable aplicou por fora):
-   - função `email_queue_dispatch`;
-   - segredo no **vault** usado pelo cron;
-   - job **pg_cron** `process-email-queue`, que chama `POST /lovable/email/queue/process` com a service role key.
+3. Conferir se o bucket `lead-anexos` (privado) foi criado. A migration `20260811133001` cria; caso não crie, criar no painel em Storage.
+4. **Fila de e-mail.** Só se for manter o pgmq; se trocar para Resend, pule este passo.
+   - Aplique `supabase/extras/email_queue_dispatch.sql`, trocando antes `__APP_URL__` pela URL do app novo.
+   - Crie o segredo no vault: `select vault.create_secret('<SERVICE_ROLE_KEY>', 'email_queue_service_role_key');`
+   - O job pg_cron `process-email-queue` é criado e removido sozinho pelas funções.
+5. **Migration dependente de dados:** `20260816231547_...sql` faz updates pelo `diagnostico_id` fixo `2606d463-df24-4729-bc02-80f08d283f2e`. Num banco vazio ela não altera nada. O efeito já vem junto com os dados importados (seção 6).
+6. Se o schema mudar no futuro, regenerar os tipos: `supabase gen types typescript --project-id yxmrhxvitvhijrhrfmvj > src/integrations/supabase/types.ts`.
 
-   Se trocar para Resend, dá para dispensar a fila pgmq e enviar direto em `src/lib/email/devolutiva-email.server.ts`.
-5. Domínio de e-mail atual: remetente `notify.cl.corptraining.com.br`, From `cl.corptraining.com.br`. Os DNS estão delegados ao Lovable, então é preciso configurar de novo no provedor escolhido.
-6. **Migration dependente de dados:** `20260816231547_...sql` faz updates pelo `diagnostico_id` fixo `2606d463-df24-4729-bc02-80f08d283f2e`. Num banco vazio ela não altera nada. Depois de importar os dados, rode-a de novo (ou confirme que o efeito já veio no dump).
-7. Regenerar os tipos se o schema mudar: `supabase gen types typescript --project-id yxmrhxvitvhijrhrfmvj > src/integrations/supabase/types.ts`.
+### Importante: as migrations criam a estrutura, não o conteúdo
+
+O conteúdo dos questionários (diagnósticos, dimensões, perguntas, opções, pesos, perfis) foi
+editado pelo painel e **só existe no banco**. Ele precisa vir na exportação de dados (seção 6),
+junto com as etapas do CRM, os motivos de perda e as origens.
+
+Volume em 14/10/2026 (pequeno):
+
+| Tabela | Linhas |
+|---|---|
+| diagnosticos | 2 |
+| dimensoes | 8 |
+| perguntas | 69 |
+| opcoes_resposta | 384 |
+| perfis_resultado | 18 |
+| respostas_diagnostico | 23 |
+| respostas_itens | 286 |
+| diagnostico_sessoes | 55 |
+| clientes_gestao | 2 |
+| agente_conversas / agente_mensagens | 2 / 8 |
+| crm_etapas | 6 |
+| motivos_perda | 6 |
+| origens | 1 |
+| profiles / user_roles | 2 / 2 |
+| consultor_ai_config | 1 |
+| logs de e-mail | ~90 |
+| anexos no storage | 0 |
+
+Há 2 usuários no Auth, nenhum vinculado ao Google.
+
+Domínio de e-mail atual: remetente `notify.cl.corptraining.com.br`, From `cl.corptraining.com.br`. Os DNS estão delegados ao Lovable, então é preciso configurar de novo no provedor escolhido.
 
 ---
 
